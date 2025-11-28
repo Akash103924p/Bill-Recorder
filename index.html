@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="format-detection" content="telephone=no">
+    <title>Auto Bill Recorder</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Offline Indicator -->
+    <div class="offline-indicator" id="offlineIndicator">
+        <span id="offlineText">You're offline. Some features may be limited.</span>
+    </div>
+
+    <!-- Sync Status -->
+    <div class="sync-status online" id="syncStatus">
+        <span class="sync-icon">✓</span>
+        <span id="syncText">Online - Synced</span>
+    </div>
+
+    <!-- App Lock Overlay -->
+    <div class="app-lock-overlay hidden" id="appLockOverlay">
+        <div class="lock-icon">🔒</div>
+        <div class="lock-message">App is locked</div>
+        <button class="btn btn-primary" onclick="billRecorder.showPinModal()">Enter PIN</button>
+    </div>
+
+    <!-- Page Loader -->
+    <div class="page-loader" id="pageLoader">
+        <div class="loader-spinner"></div>
+    </div>
+
+    <!-- PIN Lock Modal -->
+    <div class="pin-modal" id="pinModal">
+        <div class="pin-modal-content">
+            <div class="pin-modal-header">
+                <h3 id="pinModalTitle">Enter PIN</h3>
+                <button class="pin-modal-close" id="pinModalClose">×</button>
+            </div>
+            <div class="pin-modal-body">
+                <div class="pin-display" id="pinDisplay">
+                    <span class="pin-digit">●</span>
+                    <span class="pin-digit">●</span>
+                    <span class="pin-digit">●</span>
+                    <span class="pin-digit">●</span>
+                </div>
+                <div class="pin-message" id="pinMessage">Enter your 4-digit PIN</div>
+                <div class="pin-keypad">
+                    <button class="pin-key" data-digit="1">1</button>
+                    <button class="pin-key" data-digit="2">2</button>
+                    <button class="pin-key" data-digit="3">3</button>
+                    <button class="pin-key" data-digit="4">4</button>
+                    <button class="pin-key" data-digit="5">5</button>
+                    <button class="pin-key" data-digit="6">6</button>
+                    <button class="pin-key" data-digit="7">7</button>
+                    <button class="pin-key" data-digit="8">8</button>
+                    <button class="pin-key" data-digit="9">9</button>
+                    <button class="pin-key pin-clear" id="pinClear">Clear</button>
+                    <button class="pin-key" data-digit="0">0</button>
+                    <button class="pin-key pin-delete" id="pinDelete">⌫</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PIN Setup Modal -->
+    <div class="pin-modal" id="pinSetupModal">
+        <div class="pin-modal-content">
+            <div class="pin-modal-header">
+                <h3>Setup PIN Lock</h3>
+                <button class="pin-modal-close" id="pinSetupClose">×</button>
+            </div>
+            <div class="pin-modal-body">
+                <div class="pin-display" id="pinSetupDisplay">
+                    <span class="pin-digit">●</span>
+                    <span class="pin-digit">●</span>
+                    <span class="pin-digit">●</span>
+                    <span class="pin-digit">●</span>
+                </div>
+                <div class="pin-message" id="pinSetupMessage">Set your 4-digit PIN</div>
+                <div class="pin-keypad">
+                    <button class="pin-key" data-digit="1">1</button>
+                    <button class="pin-key" data-digit="2">2</button>
+                    <button class="pin-key" data-digit="3">3</button>
+                    <button class="pin-key" data-digit="4">4</button>
+                    <button class="pin-key" data-digit="5">5</button>
+                    <button class="pin-key" data-digit="6">6</button>
+                    <button class="pin-key" data-digit="7">7</button>
+                    <button class="pin-key" data-digit="8">8</button>
+                    <button class="pin-key" data-digit="9">9</button>
+                    <button class="pin-key pin-clear" id="pinSetupClear">Clear</button>
+                    <button class="pin-key" data-digit="0">0</button>
+                    <button class="pin-key pin-delete" id="pinSetupDelete">⌫</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <h1>Auto Bill Recorder</h1>
+                </div>
+                <div class="header-controls">
+                    <div class="theme-selector">
+                        <select id="colorTheme" class="theme-dropdown">
+                            <option value="default">🎨 Default</option>
+                            <option value="ocean">🌊 Ocean</option>
+                            <option value="sunset">🌅 Sunset</option>
+                            <option value="forest">🌲 Forest</option>
+                            <option value="purple">💜 Purple</option>
+                            <option value="midnight">🌙 Midnight</option>
+                        </select>
+                        <select id="fontFamily" class="font-dropdown">
+                            <option value="default">🔤 Default Font</option>
+                            <option value="modern">✨ Modern</option>
+                            <option value="elegant">🖋️ Elegant</option>
+                            <option value="casual">😊 Casual</option>
+                            <option value="tech">💻 Tech</option>
+                        </select>
+                    </div>
+                    <button id="pinToggle" class="pin-toggle" title="PIN Lock">
+                        <span class="pin-icon">🔓</span>
+                    </button>
+                    <button id="themeToggle" class="theme-toggle">
+                        <span class="theme-icon">🌙</span>
+                    </button>
+                    <div class="author">Made by Akash Mahato</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="nav-tabs">
+            <button class="nav-tab active" data-tab="add-products">
+                <span class="nav-icon">🛒</span>
+                <span class="nav-text">ADD PRODUCTS</span>
+            </button>
+            <button class="nav-tab" data-tab="bill-history">
+                <span class="nav-icon">📋</span>
+                <span class="nav-text">BILL HISTORY</span>
+            </button>
+            <button class="nav-tab" data-tab="monthly-reports">
+                <span class="nav-icon">📊</span>
+                <span class="nav-text">MONTHLY REPORTS</span>
+            </button>
+            <button class="nav-tab" data-tab="dashboard">
+                <span class="nav-icon">📈</span>
+                <span class="nav-text">DASHBOARD</span>
+            </button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Add Products Tab -->
+            <div class="tab-content active" id="add-products">
+                <div class="page-header animate-in-down">
+                    <h2>Add Products to Bill</h2>
+                    <p>Enter product details to create your bill.</p>
+                </div>
+                
+                <div class="add-product-section">
+                    <div class="form-card animate-in-left">
+                        <h3>Add New Product</h3>
+                        <form id="productForm">
+                            <div class="form-group">
+                                <label for="productName">Product Name</label>
+                                <input type="text" id="productName" placeholder="Enter product name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="price">Price (₹)</label>
+                                <input type="number" id="price" placeholder="0.00" step="0.01" min="0" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="quantity">Quantity</label>
+                                <input type="number" id="quantity" placeholder="1" min="1" value="1" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="category">Category</label>
+                                <select id="category">
+                                    <option value="General">General</option>
+                                    <option value="Food">Food</option>
+                                    <option value="Electronics">Electronics</option>
+                                    <option value="Clothing">Clothing</option>
+                                    <option value="Groceries">Groceries</option>
+                                    <option value="Medicine">Medicine</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="paymentMethod">Payment Method</label>
+                                <select id="paymentMethod">
+                                    <option value="Cash">💵 Cash</option>
+                                    <option value="Card">💳 Card</option>
+                                    <option value="UPI">📱 UPI</option>
+                                    <option value="Net Banking">🏦 Net Banking</option>
+                                    <option value="Wallet">👛 Wallet</option>
+                                    <option value="Other">🔄 Other</option>
+                                </select>
+                            </div>
+                            <div class="form-actions animate-in-up">
+                                <button type="button" id="clearForm" class="btn btn-secondary">
+                                    <span class="btn-icon">🔄</span>
+                                    Clear Form
+                                </button>
+                                <button type="button" id="voiceInput" class="btn btn-primary">
+                                    <span class="btn-icon">🎤</span>
+                                    Voice Input
+                                </button>
+                                <button type="submit" class="btn btn-primary">+ ADD PRODUCT</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="products-list animate-in-right">
+                        <h3>Current Bill Items</h3>
+                        <div id="productsList"></div>
+                        <div class="bill-summary">
+                            <div class="total-amount">
+                                <strong>Total Amount: ₹<span id="totalAmount">0.00</span></strong>
+                            </div>
+                            <button class="btn btn-success" id="generateBill">GENERATE BILL</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bill History Tab -->
+            <div class="tab-content" id="bill-history">
+                <div class="page-header animate-in-down">
+                    <h2>Bill History</h2>
+                    <p>View and manage your previous bills.</p>
+                </div>
+                
+                <!-- Search and Filter Bar -->
+                <div class="search-filter-bar animate-in-up">
+                    <input type="text" class="search-input" id="billSearch" placeholder="Search bills...">
+                    <select class="filter-dropdown" id="billFilter">
+                        <option value="all">All Bills</option>
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                    </select>
+                    <button class="btn btn-primary" id="exportBills">📥 Export</button>
+                </div>
+                
+                <div id="billsList"></div>
+            </div>
+
+            <!-- Monthly Reports Tab -->
+            <div class="tab-content" id="monthly-reports">
+                <div class="page-header animate-in-down">
+                    <h2>Monthly Reports</h2>
+                    <p>Analyze your monthly expenses with various charts.</p>
+                </div>
+                
+                <!-- Chart Selection Buttons -->
+                <div class="chart-selection animate-in-up">
+                    <h3>Select Chart Type</h3>
+                    <div class="chart-buttons">
+                        <button class="chart-btn active" data-chart="bar">
+                            <span class="chart-icon">📊</span>
+                            Bar Chart
+                        </button>
+                        <button class="chart-btn" data-chart="line">
+                            <span class="chart-icon">📈</span>
+                            Line Chart
+                        </button>
+                        <button class="chart-btn" data-chart="pie">
+                            <span class="chart-icon">🥧</span>
+                            Pie Chart
+                        </button>
+                        <button class="chart-btn" data-chart="doughnut">
+                            <span class="chart-icon">🍩</span>
+                            Doughnut
+                        </button>
+                        <button class="chart-btn" data-chart="radar">
+                            <span class="chart-icon">🎯</span>
+                            Radar Chart
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Dynamic Chart Container -->
+                <div class="charts-container">
+                    <div class="chart-section active" id="barChartSection">
+                        <h3>Bar Chart - Monthly Expenses</h3>
+                        <canvas id="barChart"></canvas>
+                    </div>
+                    <div class="chart-section" id="lineChartSection">
+                        <h3>Line Chart - Expense Trend</h3>
+                        <canvas id="lineChart"></canvas>
+                    </div>
+                    <div class="chart-section" id="pieChartSection">
+                        <h3>Pie Chart - Category Distribution</h3>
+                        <canvas id="pieChart"></canvas>
+                    </div>
+                    <div class="chart-section" id="doughnutChartSection">
+                        <h3>Doughnut Chart - Category Distribution</h3>
+                        <canvas id="doughnutChart"></canvas>
+                    </div>
+                    <div class="chart-section" id="radarChartSection">
+                        <h3>Radar Chart - Category Analysis</h3>
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Tab -->
+            <div class="tab-content" id="dashboard">
+                <div class="page-header animate-in-down">
+                    <h2>Dashboard</h2>
+                    <p>Overview of your billing statistics.</p>
+                </div>
+                
+                <!-- Budget Alerts Section -->
+                <div class="budget-alerts-section animate-in-up">
+                    <h3>🚨 Budget Alerts</h3>
+                    <div id="budgetAlerts"></div>
+                </div>
+                
+                <!-- Progress Overview -->
+                <div class="progress-section animate-in-up">
+                    <h3>Monthly Budget Progress</h3>
+                    <div class="budget-controls">
+                        <input type="number" id="budgetInput" placeholder="Set monthly budget" min="0" step="100">
+                        <button class="btn btn-primary" id="setBudget">Set Budget</button>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="budgetProgress" style="width: 0%"></div>
+                    </div>
+                    <p>₹<span id="currentSpent">0</span> of ₹<span id="monthlyBudget">10000</span> spent</p>
+                </div>
+                
+                <!-- Payment Method Stats -->
+                <div class="payment-stats-section animate-in-up">
+                    <h3>💳 Payment Method Statistics</h3>
+                    <div id="paymentStats"></div>
+                </div>
+                
+                <div class="dashboard-stats">
+                    <div class="stat-card animate-in-left tooltip" data-tooltip="Total bills generated">
+                        <h3>Total Bills</h3>
+                        <div class="stat-value" id="totalBills">0</div>
+                    </div>
+                    <div class="stat-card animate-in-up tooltip" data-tooltip="Total amount spent">
+                        <h3>Total Expenses</h3>
+                        <div class="stat-value">₹<span id="totalExpenses">0.00</span></div>
+                    </div>
+                    <div class="stat-card animate-in-up tooltip" data-tooltip="Average bill amount">
+                        <h3>Average Bill Amount</h3>
+                        <div class="stat-value">₹<span id="avgBillAmount">0.00</span></div>
+                    </div>
+                    <div class="stat-card animate-in-right tooltip" data-tooltip="Current month total">
+                        <h3>This Month's Total</h3>
+                        <div class="stat-value">₹<span id="thisMonthTotal">0.00</span></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- Floating Action Button -->
+        <button class="fab" id="fabButton" title="Quick Actions">+</button>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
